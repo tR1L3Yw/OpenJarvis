@@ -108,6 +108,31 @@ async def chat_completions(request_body: ChatCompletionRequest, request: Request
     agent = getattr(request.app.state, "agent", None)
     model = request_body.model
 
+    # --- LOCAL PATCH: inject persona BEFORE memory context ---
+    # inject_context() emits a SYSTEM message; if it runs first, the guard
+    # clause in _ensure_identity_prompt sees it and skips persona injection.
+    # Injecting persona here (guarded: only when no system msg exists yet)
+    # lets SOUL.md/MEMORY.md/USER.md and memory context coexist.
+    _cfg_early = getattr(request.app.state, "config", None)
+    if request_body.messages and not any(
+        m.role == "system" for m in request_body.messages
+    ):
+        try:
+            from openjarvis.server.models import ChatMessage
+
+            _with_persona = _ensure_identity_prompt(
+                _to_messages(request_body.messages), _cfg_early
+            )
+            if len(_with_persona) > len(request_body.messages):
+                request_body.messages = [
+                    ChatMessage(role="system", content=_with_persona[0].content)
+                ] + list(request_body.messages)
+        except Exception:
+            logging.getLogger("openjarvis.server").debug(
+                "Early persona injection failed", exc_info=True
+            )
+    # --- END LOCAL PATCH ---
+
     # Inject memory context into messages before dispatching
     config = getattr(request.app.state, "config", None)
     memory_backend = getattr(request.app.state, "memory_backend", None)
