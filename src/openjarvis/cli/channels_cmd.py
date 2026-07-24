@@ -112,6 +112,10 @@ def imessage_start(
         from openjarvis.tools.scan_chunks import ScanChunksTool
         from openjarvis.tools.think import ThinkTool
 
+        from openjarvis.core.config import load_config
+        from openjarvis.prompt.builder import SystemPromptBuilder
+
+        config = load_config()
         engine = OllamaEngine()
         store = KnowledgeStore()
         retriever = TwoStageRetriever(store)
@@ -125,10 +129,16 @@ def imessage_start(
             ),
             ThinkTool(),
         ]
+        prompt_builder = SystemPromptBuilder(
+            agent_template=config.agent.default_system_prompt or "",
+            memory_files_config=config.memory_files,
+            system_prompt_config=config.system_prompt,
+        )
         agent = DeepResearchAgent(
             engine=engine,
             model="qwen3.5:9b",
             tools=tools,
+            prompt_builder=prompt_builder,
         )
 
         def handler(text: str) -> str:

@@ -45,7 +45,7 @@ def _build_system_prompt() -> str:
 
     return f"""\
 /no_think
-You are Jarvis, a personal AI assistant with access to the user's private \
+You are the user's personal AI assistant with access to their private \
 knowledge base — emails, text messages, meeting notes, documents, and notes. \
 You are helpful, conversational, and smart about when to use your tools.
 
@@ -224,6 +224,7 @@ class DeepResearchAgent(ToolUsingAgent):
         system_prompt = (
             load_system_prompt_override("deep_research") or _build_system_prompt()
         )
+        system_prompt = self._apply_persona(system_prompt)
         messages = self._build_messages(input, context, system_prompt=system_prompt)
 
         # Inject few-shot exemplars before the user input
