@@ -172,7 +172,7 @@ class TelegramChannel(BaseChannel):
 
             app = ApplicationBuilder().token(self._token).build()
 
-            def _handle_msg(update, context):
+            async def _handle_msg(update, context):
                 msg = update.message
                 if msg is None:
                     return
@@ -198,7 +198,9 @@ class TelegramChannel(BaseChannel):
                         return
                 for handler in self._handlers:
                     try:
-                        handler(cm)
+                        reply = handler(cm)
+                        if reply:
+                            self.send(cm.conversation_id, reply)
                     except Exception:
                         logger.exception("Telegram handler error")
                 if self._bus is not None:
