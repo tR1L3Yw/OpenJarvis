@@ -105,6 +105,62 @@ class TestSend:
         event_types = [e.event_type for e in bus.history]
         assert EventType.CHANNEL_MESSAGE_SENT in event_types
 
+    def test_send_retries_as_plain_text_on_malformed_markdown(self):
+        """A 400 'can't parse entities' response triggers a same-text retry
+        with parse_mode dropped, and the message still gets delivered."""
+        ch = TelegramChannel(bot_token="123:ABC")
+
+        bad_response = MagicMock()
+        bad_response.status_code = 400
+        bad_response.text = (
+            "Bad Request: can't parse entities: Character '.' is reserved "
+            "and must be escaped with the preceding '\\'"
+        )
+        good_response = MagicMock()
+        good_response.status_code = 200
+
+        with patch(
+            "httpx.post", side_effect=[bad_response, good_response]
+        ) as mock_post, patch.object(
+            __import__("openjarvis.channels.telegram", fromlist=["logger"]).logger,
+            "warning",
+        ) as mock_warn:
+            result = ch.send("12345678", "Hello *world*")
+
+        assert result is True
+        assert mock_post.call_count == 2
+
+        first_payload = mock_post.call_args_list[0][1]["json"]
+        second_payload = mock_post.call_args_list[1][1]["json"]
+
+        assert first_payload["text"] == "Hello *world*"
+        assert first_payload["parse_mode"] == "Markdown"
+
+        assert second_payload["text"] == "Hello *world*"
+        assert "parse_mode" not in second_payload
+        assert second_payload["chat_id"] == first_payload["chat_id"]
+
+        mock_warn.assert_called_once()
+
+    def test_send_fails_if_retry_also_errors(self):
+        """If the plain-text retry itself fails, send() still reports failure."""
+        ch = TelegramChannel(bot_token="123:ABC")
+
+        bad_response = MagicMock()
+        bad_response.status_code = 400
+        bad_response.text = "Bad Request: can't parse entities: bad markup"
+        still_bad_response = MagicMock()
+        still_bad_response.status_code = 400
+        still_bad_response.text = "Bad Request: chat not found"
+
+        with patch(
+            "httpx.post", side_effect=[bad_response, still_bad_response]
+        ) as mock_post:
+            result = ch.send("12345678", "Hello *world*")
+
+        assert result is False
+        assert mock_post.call_count == 2
+
     def test_send_uses_channel_as_chat_id_under_unified_contract(self):
         """Canonical contract (#515/#516): the first positional ``channel``
         arg is the chat destination, and ``conversation_id`` is the inbound

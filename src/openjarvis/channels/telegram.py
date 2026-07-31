@@ -138,6 +138,15 @@ class TelegramChannel(BaseChannel):
                     payload["reply_to_message_id"] = reply_to
 
                 resp = httpx.post(url, json=payload, timeout=10.0)
+                if resp.status_code == 400 and "can't parse entities" in resp.text.lower():
+                    logger.warning(
+                        "Telegram rejected message due to malformed %s formatting; "
+                        "retrying as plain text",
+                        self._parse_mode,
+                    )
+                    plain_payload = dict(payload)
+                    plain_payload.pop("parse_mode", None)
+                    resp = httpx.post(url, json=plain_payload, timeout=10.0)
                 if resp.status_code >= 300:
                     logger.warning(
                         "Telegram API returned status %d: %s",
