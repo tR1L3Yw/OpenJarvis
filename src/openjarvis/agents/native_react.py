@@ -6,6 +6,7 @@ implementation, not an integration with an external project.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, List, Optional
 
@@ -19,6 +20,8 @@ from openjarvis.core.registry import AgentRegistry
 from openjarvis.core.types import Message, Role, ToolCall, ToolResult, _message_to_dict
 from openjarvis.engine._stubs import InferenceEngine
 from openjarvis.tools._stubs import BaseTool, build_tool_descriptions
+
+logger = logging.getLogger(__name__)
 
 REACT_SYSTEM_PROMPT = """\
 You are a ReAct agent. For each step, respond with exactly one of:
@@ -239,6 +242,15 @@ class NativeReActAgent(ToolUsingAgent):
                     continue
 
             tool_result = self._executor.execute(tool_call)
+            result_summary = tool_result.content.replace("\n", " ")
+            if len(result_summary) > 200:
+                result_summary = result_summary[:200] + "..."
+            logger.info(
+                "[tool_call] %s(%s) -> %s",
+                tool_call.name,
+                tool_call.arguments,
+                result_summary,
+            )
             all_tool_results.append(tool_result)
 
             observation = f"Observation: {tool_result.content}"
