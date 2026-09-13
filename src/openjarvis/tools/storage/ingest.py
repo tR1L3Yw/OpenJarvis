@@ -25,6 +25,11 @@ _SKIP_DIRS = frozenset(
         "__pypackages__",
         ".eggs",
         "*.egg-info",
+        # jarjar_vault's locked eval question sets (eval/questions_dev.jsonl,
+        # eval/questions_holdout.jsonl) must never be walked into the
+        # knowledge store — doing so would let the eval harness's own
+        # answers leak into the corpus it's scoring against.
+        "eval",
     }
 )
 
