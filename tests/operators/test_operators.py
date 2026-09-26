@@ -560,6 +560,41 @@ class TestOperativeAgent:
         assert saved[1]["role"] == "assistant"
         assert saved[1]["content"] == "Tick response."
 
+    def test_final_response_hook_runs_before_session_save(self):
+        from openjarvis.agents.operative import OperativeAgent
+
+        class FinalizingAgent(OperativeAgent):
+            def _finalize_response(self, content, messages, tool_results):
+                assert messages[-1].content == "Execute tick"
+                assert tool_results == []
+                return content + " [checked]"
+
+        session_store = FakeSessionStore()
+        agent = FinalizingAgent(
+            FakeEngine([{"content": "Tick response."}]),
+            "test-model",
+            operator_id="finalize_test",
+            session_store=session_store,
+        )
+        result = agent.run("Execute tick")
+
+        assert result.content == "Tick response. [checked]"
+        saved = session_store._messages["operator:finalize_test"]
+        assert saved[-1]["content"] == result.content
+
+    def test_final_response_hook_runs_on_max_turn_exit(self):
+        from openjarvis.agents.operative import OperativeAgent
+
+        class FinalizingAgent(OperativeAgent):
+            def _finalize_response(self, content, messages, tool_results):
+                return "finalized"
+
+        agent = FinalizingAgent(FakeEngine(), "test-model", max_turns=0)
+        result = agent.run("Execute tick")
+
+        assert result.content == "finalized"
+        assert result.metadata["max_turns_exceeded"] is True
+
     def test_run_recalls_state(self):
         from openjarvis.agents.operative import OperativeAgent
 

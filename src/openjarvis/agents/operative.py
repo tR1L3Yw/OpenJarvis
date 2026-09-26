@@ -206,6 +206,7 @@ class OperativeAgent(ToolUsingAgent):
                 )
         else:
             # Max turns exceeded
+            content = self._finalize_response(content, messages, all_tool_results)
             self._save_session(input, content)
             meta = dict(total_usage)
             meta["max_turns_exceeded"] = True
@@ -216,7 +217,8 @@ class OperativeAgent(ToolUsingAgent):
                 metadata=meta,
             )
 
-        # 6. Save session
+        # 6. Finalize and save session
+        content = self._finalize_response(content, messages, all_tool_results)
         self._save_session(input, content)
 
         # 7. Auto-persist state if agent didn't do it explicitly
@@ -230,6 +232,19 @@ class OperativeAgent(ToolUsingAgent):
             turns=turns,
             metadata=total_usage,
         )
+
+    def _finalize_response(
+        self,
+        content: str,
+        messages: list[Message],
+        tool_results: list[ToolResult],
+    ) -> str:
+        """Allow subclasses to inspect the final reply and this tick's evidence.
+
+        Called after continuation and before session save on normal and
+        max-turn exits. The default preserves OperativeAgent behavior.
+        """
+        return content
 
     def _build_operative_messages(
         self,
